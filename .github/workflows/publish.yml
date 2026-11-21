@@ -1,0 +1,160 @@
+name: Build, Test & Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  schedule:
+    # Weekly Sunday rebuild to pick up Ubuntu 26.04, Wine, and jlesage/baseimage-gui security updates
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve version tag
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(date -u +%y.%m.%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build local test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: scansnap-home:ci
+          build-args: |
+            DOCKER_IMAGE_VERSION=${{ steps.ver.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container smoke test
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name scansnap-smoke \
+            -p 127.0.0.1:6080:6080 \
+            -e WEB_LISTENING_PORT=6080 \
+            -e VNC_LISTENING_PORT=-1 \
+            scansnap-home:ci
+
+          trap 'docker logs scansnap-smoke || true; docker rm -f scansnap-smoke || true' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:6080/ >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+
+          curl -fsSI http://127.0.0.1:6080/ | grep -q "200 OK"
+          curl -fsSI http://127.0.0.1:6080/app/images/icons/master_icon.png | grep -q "200 OK"
+          curl -fsSI http://127.0.0.1:6080/app/scansnap-sidebar.js | grep -q "200 OK"
+          curl -fsS http://127.0.0.1:6080/scansnap-api/status | grep -q '"services"'
+
+          arches="$(docker exec scansnap-smoke dpkg --print-foreign-architectures)"
+          test -z "$arches"
+
+          docker exec scansnap-smoke wine --version
+          docker exec scansnap-smoke ldd /opt/scansnap/lib64/libscansnap_udp.so | grep -qv "not found"
+          docker exec scansnap-smoke python3 /opt/scansnap/patch_scansnap.py --help >/dev/null
+
+          fonts="$(docker exec scansnap-smoke fc-list : family)"
+          for fam in "Arial" "Segoe UI" "Tahoma" "Meiryo UI" "Times New Roman" "Courier New"; do
+            echo "$fonts" | grep -Fxq "$fam" || { echo "Missing font family: $fam"; exit 1; }
+          done
+
+  publish:
+    needs: build-and-test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare registries and version
+        id: prep
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          repo_lower="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          images="ghcr.io/${repo_lower}"
+          if [[ -n "${DOCKERHUB_USERNAME}" && -n "${DOCKERHUB_TOKEN}" ]]; then
+            dh_lower="$(echo "${DOCKERHUB_USERNAME}" | tr '[:upper:]' '[:lower:]')"
+            images="${images}"$'\n'"docker.io/${dh_lower}/scansnap-home"
+          fi
+          {
+            echo "images<<EOF"
+            echo "${images}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(date -u +%y.%m.%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub (optional)
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.prep.outputs.images }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DOCKER_IMAGE_VERSION=${{ steps.prep.outputs.version }}
+          cache-from: type=gha

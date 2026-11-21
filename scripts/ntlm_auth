@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Local loopback ntlm_auth helper for Wine msv1_0.dll SSPI (WCF NetNamedPipeBinding)."""
+
+import base64
+import os
+import struct
+import sys
+
+if "--version" in sys.argv:
+    print("Version 4.20.0", flush=True)
+    raise SystemExit(0)
+
+is_server = any("squid-2.5-ntlmssp" in a for a in sys.argv)
+auth_user = os.environ.get("NTLM_AUTH_USER") or os.environ.get("USER") or "app"
+FLAGS = 0x62088215
+
+# Valid NTLMSSP Type 1 (Negotiate), Type 2 (Challenge), Type 3 (Authenticate) tokens
+TYPE1 = b"NTLMSSP\x00" + struct.pack("<II", 1, FLAGS) + b"\x00" * 16
+TYPE2 = (
+    b"NTLMSSP\x00"
+    + struct.pack("<IHHI", 2, 0, 0, 48)
+    + struct.pack("<I", FLAGS)
+    + b"\x01\x02\x03\x04\x05\x06\x07\x08"
+    + b"\x00" * 16
+)
+TYPE3 = b"NTLMSSP\x00" + struct.pack("<I", 3) + b"\x00" * 52 + struct.pack("<I", FLAGS)
+SESSION_KEY = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10"
+
+
+def b64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+for raw_line in sys.stdin:
+    line = raw_line.strip()
+    if not line:
+        continue
+    if line == "YR" or (line.startswith("YR") and not is_server):
+        print(f"YR {b64(TYPE1)}", flush=True)
+    elif line.startswith("YR"):
+        print(f"TT {b64(TYPE2)}", flush=True)
+    elif line.startswith("TT "):
+        print(f"KK {b64(TYPE3)}", flush=True)
+    elif line.startswith("KK "):
+        print(f"AF {auth_user}", flush=True)
+    elif line.startswith("GF"):
+        print(f"GF 0x{FLAGS:08x}", flush=True)
+    elif line.startswith("GK"):
+        print(f"GK {b64(SESSION_KEY)}", flush=True)
+    else:
+        print("OK", flush=True)

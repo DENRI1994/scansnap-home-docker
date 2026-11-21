@@ -1,0 +1,12 @@
+.git
+.env
+data
+scans
+installer
+wineprefix
+extracted
+config_backup
+*.exe
+*.msi
+*.dmg
+__pycache__

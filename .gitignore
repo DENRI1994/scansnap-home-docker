@@ -1,0 +1,16 @@
+.env
+data/
+scans/
+installer/
+wineprefix/
+extracted/
+config_backup/
+*.exe
+*.msi
+*.dmg
+*.cab
+*.hdr
+*.log
+__pycache__/
+*.pyc
+.DS_Store
