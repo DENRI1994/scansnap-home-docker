@@ -38,7 +38,7 @@ jobs:
           fi
 
       - name: Build local test image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -149,7 +149,7 @@ jobs:
             type=sha,prefix=sha-
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
