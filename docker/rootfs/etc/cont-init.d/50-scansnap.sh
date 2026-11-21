@@ -49,14 +49,15 @@ if [ -n "${LEGACY_USER_DIR}" ]; then
 fi
 
 APPDATA_SSH="${ACTIVE_USER_DIR}/AppData/Roaming/PFU/ScanSnap Home"
-mkdir -p "${APPDATA_SSH}"
+mkdir -p "${APPDATA_SSH}/Configs"
 chown "${UID_VAL}:${GID_VAL}" \
       "${USERS_DIR}" \
       "${ACTIVE_USER_DIR}" \
       "${ACTIVE_USER_DIR}/AppData" \
       "${ACTIVE_USER_DIR}/AppData/Roaming" \
       "${ACTIVE_USER_DIR}/AppData/Roaming/PFU" \
-      "${APPDATA_SSH}" 2>/dev/null || true
+      "${APPDATA_SSH}" \
+      "${APPDATA_SSH}/Configs" 2>/dev/null || true
 
 link_to_scan_dir() {
   local target="$1"
@@ -89,6 +90,10 @@ if [ -f "${SSH_EXE}" ]; then
     "${SCAN_DIR}" \
     "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Home/SsWizard/PfuSsFirmwareUpdate" \
     "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Home/SsWizard/PfuSsFirmwareUpdate/ScanSnap_WW.bin" \
+    "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Home/Pfu.ScanSnap.ConfigControl.dll" \
+    "${APPDATA_SSH}/Configs" \
+    "${APPDATA_SSH}/Configs/PfuSsHomeOption.config" \
+    "${APPDATA_SSH}/Configs/SSViewLaunch.ini" \
     "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Update/SsUCommon.dll" \
     "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Update/ScanSnapUpdater.exe" \
     "${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Home/"*.config 2>/dev/null || true

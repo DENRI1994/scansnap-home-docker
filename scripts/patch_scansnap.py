@@ -16,8 +16,11 @@ Docker across updates and container restarts:
      via `CoCreateInstance(..., CLSCTX_INPROC_SERVER)` instead of the
      unsupported Windows COM Elevation moniker.
   6. Configures `user.reg` & `system.reg` for Windows 11 (`win11`, Build 22621,
-     `Policies\\System` UAC values, ClearType, and `Avalon.Graphics`).
-  7. Synchronizes `HomeFolder` and `ScanSnapHome.db` paths to `SCAN_FOLDER_WIN`
+     `Policies\\System` UAC values, ClearType, `Avalon.Graphics`, and native
+     VC++ 140 `DllOverrides` to prevent Wine builtin SRWLock deadlocks in OCR).
+  7. Synchronizes `HomeFolder` and `ScanSnapHome.db` paths to `SCAN_FOLDER_WIN`,
+     defaults double-click/viewer opening to the built-in ScanSnap Home Viewer,
+     disables `SsView.exe Optimize` pre-warming via `Configs/SSViewLaunch.ini`,
      and ensures `SsWizard/PfuSsFirmwareUpdate/*_WW.bin` exists.
 """
 
@@ -94,6 +97,15 @@ TERMINATE_WMI_BROKEN_RE = re.compile(
 )
 TERMINATE_WMI_PATCHED_RE = re.compile(
     rb"\x13\x30\x03\x00\xd4\x00\x00\x00(.{4})\x16\x2a\x00\x00\x00(\x6f.{3}\x0a\x26\x28.{3}\x0a\x6f.{3}\x0a\x0a\x72.{3}\x70\x73)",
+    re.DOTALL,
+)
+
+MOUTH_CTOR_ORIG_RE = re.compile(
+    rb"\x3a\x02\x18(\x7d..\x00\x04\x02\x28..\x00\x0a\x2a)",
+    re.DOTALL,
+)
+MOUTH_CTOR_PATCHED_RE = re.compile(
+    rb"\x3a\x02\x17(\x7d..\x00\x04\x02\x28..\x00\x0a\x2a)",
     re.DOTALL,
 )
 
@@ -322,6 +334,21 @@ def update_wine_registry() -> None:
             r"Software\\Wine\\X11 Driver",
             {
                 "GrabFullscreen": '"N"',
+            },
+        ),
+        (
+            r"Software\\Wine\\DllOverrides",
+            {
+                "*concrt140": '"native,builtin"',
+                "*msvcp140": '"native,builtin"',
+                "*msvcp140_1": '"native,builtin"',
+                "*msvcp140_2": '"native,builtin"',
+                "*msvcp140_atomic_wait": '"native,builtin"',
+                "*msvcp140_codecvt_ids": '"native,builtin"',
+                "*vcomp140": '"native,builtin"',
+                "*vcruntime140": '"native,builtin"',
+                "*vcruntime140_1": '"native,builtin"',
+                "*vcruntime140_threads": '"native,builtin"',
             },
         ),
     ):
@@ -670,6 +697,143 @@ def repair_syswow64_dlls() -> None:
         print(f"[syswow64] ok {syswow64} (all PE binaries are 32-bit 0x14c)")
 
 
+def patch_default_viewer_ctor() -> None:
+    """Default Mouth.Application in Pfu.ScanSnap.ConfigControl.dll to FILEOPENAPP_VIEWER (1)."""
+    dll_path = SSH_HOME_DIR / "Pfu.ScanSnap.ConfigControl.dll"
+    if not dll_path.exists():
+        print(f"[viewer-dll] skipped (not installed): {dll_path}")
+        return
+
+    raw = dll_path.read_bytes()
+    if b"FILEOPENAPP_VIEWER" not in raw:
+        print(f"[viewer-dll] warn: FILEOPENAPP_VIEWER symbol not found in {dll_path}")
+        return
+
+    matches = list(MOUTH_CTOR_ORIG_RE.finditer(raw))
+    if len(matches) == 1:
+        match = matches[0]
+        data = bytearray(raw)
+        data[match.start() : match.end()] = b"\x3a\x02\x17" + match.group(1)
+        dll_path.write_bytes(bytes(data))
+        print(f"[viewer-dll] patched Mouth..ctor default to FILEOPENAPP_VIEWER (1) in {dll_path}")
+        return
+
+    if MOUTH_CTOR_PATCHED_RE.search(raw):
+        print(f"[viewer-dll] ok {dll_path}")
+        return
+
+    print(f"[viewer-dll] warn: Mouth..ctor pattern not matched ({len(matches)} matches) in {dll_path}")
+
+
+def ensure_viewer_default() -> None:
+    """Switch <Mouth Application=\"2\" /> to built-in Viewer (\"1\") in PfuSsHomeOption.config."""
+    users_dir = WINEPREFIX / "drive_c" / "users"
+    if not users_dir.exists():
+        return
+
+    seen: set[Path] = set()
+    for cfg_path in sorted(users_dir.glob("*/AppData/Roaming/PFU/ScanSnap Home/Configs/PfuSsHomeOption.config")):
+        resolved = cfg_path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+
+        raw = cfg_path.read_bytes()
+        has_bom = raw.startswith(b"\xef\xbb\xbf")
+        text = raw.decode("utf-8-sig", errors="replace")
+        new_text, count = re.subn(r'(<Mouth\b[^>]*?\bApplication=")2(")', r"\g<1>1\g<2>", text)
+        if count > 0 and new_text != text:
+            cfg_path.write_bytes((b"\xef\xbb\xbf" if has_bom else b"") + new_text.encode("utf-8"))
+            print(f"[viewer-cfg] switched Mouth Application 2 -> 1 in {cfg_path}")
+        else:
+            print(f"[viewer-cfg] ok {cfg_path}")
+
+
+def ensure_viewer_no_prewarm() -> None:
+    """Disable SsView.exe Optimize pre-warming via Configs/SSViewLaunch.ini (SSView=0)."""
+    users_dir = WINEPREFIX / "drive_c" / "users"
+    if not users_dir.exists():
+        return
+
+    seen: set[Path] = set()
+    for user_dir in sorted(users_dir.iterdir()):
+        if not user_dir.is_dir() or user_dir.name.lower() == "public":
+            continue
+        ssh_dir = user_dir / "AppData" / "Roaming" / "PFU" / "ScanSnap Home"
+        if not ssh_dir.exists():
+            continue
+        resolved_ssh = ssh_dir.resolve()
+        if resolved_ssh in seen:
+            continue
+        seen.add(resolved_ssh)
+
+        cfg_dir = ssh_dir / "Configs"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        ini_path = cfg_dir / "SSViewLaunch.ini"
+
+        if not ini_path.exists():
+            # Write without UTF-8 BOM so GetPrivateProfileStringW matches [Launch]
+            ini_path.write_bytes(b"[Launch]\r\nSSView=0\r\n")
+            print(f"[viewer-ini] wrote {ini_path} (SSView=0)")
+            continue
+
+        raw = ini_path.read_bytes()
+        has_utf8_bom = raw.startswith(b"\xef\xbb\xbf")
+        if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+            text = raw.decode("utf-16", errors="replace")
+        else:
+            text = raw.decode("utf-8-sig", errors="replace")
+
+        lines = text.splitlines()
+        out_lines: list[str] = []
+        in_launch = False
+        found_launch = False
+        found_key = False
+        changed = False
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                if in_launch and not found_key:
+                    out_lines.append("SSView=0")
+                    found_key = True
+                    changed = True
+                in_launch = stripped.lower() == "[launch]"
+                if in_launch:
+                    found_launch = True
+                out_lines.append(line)
+                continue
+
+            if in_launch:
+                m = re.match(r"^\s*SSView\s*=\s*(.*)$", line, re.IGNORECASE)
+                if m:
+                    found_key = True
+                    if m.group(1).strip() != "0":
+                        out_lines.append("SSView=0")
+                        changed = True
+                    else:
+                        out_lines.append(line)
+                    continue
+
+            out_lines.append(line)
+
+        if in_launch and not found_key:
+            out_lines.append("SSView=0")
+            changed = True
+        elif not found_launch:
+            if out_lines and out_lines[-1].strip():
+                out_lines.append("")
+            out_lines.extend(["[Launch]", "SSView=0"])
+            changed = True
+
+        if changed or has_utf8_bom:
+            new_text = "\r\n".join(out_lines) + "\r\n"
+            ini_path.write_bytes(new_text.encode("utf-8"))
+            print(f"[viewer-ini] updated {ini_path} (SSView=0)")
+        else:
+            print(f"[viewer-ini] ok {ini_path}")
+
+
 def main() -> None:
     """Apply and verify all Wine/ScanSnap Home compatibility patches idempotently."""
     parser = argparse.ArgumentParser(description="Patch ScanSnap Home Wine/Docker setup idempotently.")
@@ -685,10 +849,13 @@ def main() -> None:
     patch_wcf_servicemodel()
     patch_wcf_configs()
     patch_terminate_wmi_deadlock()
+    patch_default_viewer_ctor()
     patch_updater_os_version()
     patch_updater_uac()
     update_wine_registry()
     sync_scan_folder()
+    ensure_viewer_default()
+    ensure_viewer_no_prewarm()
     ensure_ww_marker()
     print("[done] all ScanSnap Home patches verified/applied cleanly.")
 

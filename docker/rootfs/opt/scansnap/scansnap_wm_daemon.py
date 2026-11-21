@@ -43,7 +43,9 @@ IGNORE_TITLES = {
     "Hidden Window",
     "SsViewMain",
     "ScanSnap Home - []",
+    "Viewer - []",
 }
+IGNORE_TITLE_SUFFIXES = (" - []",)
 IGNORE_TITLE_PREFIXES = (
     "PfuSshImg",
     "GlowWindow",
@@ -142,6 +144,7 @@ class X11Controller:
         self.dpy: int | None = None
         self.root: int = 0
         self.atoms: dict[str, int] = {}
+        self.seen_dialogs: set[int] = set()
 
     def _bind_types(self) -> None:
         x11, xext = self.x11, self.xext
@@ -198,8 +201,14 @@ class X11Controller:
             "_NET_WM_NAME",
             "_NET_WM_STATE",
             "_NET_WM_STATE_BELOW",
+            "_NET_WM_STATE_DEMANDS_ATTENTION",
             "_NET_WM_STATE_FULLSCREEN",
             "_NET_WM_STATE_HIDDEN",
+            "_NET_WM_WINDOW_TYPE",
+            "_NET_WM_WINDOW_TYPE_TOOLTIP",
+            "_NET_WM_WINDOW_TYPE_POPUP_MENU",
+            "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU",
+            "_NET_WM_WINDOW_TYPE_COMBO",
             "UTF8_STRING",
             "WM_NAME",
         ):
@@ -342,23 +351,44 @@ class X11Controller:
             client_ids = self._get_win_list_prop(self.atoms["_NET_CLIENT_LIST"])
 
         below_atom = self.atoms["_NET_WM_STATE_BELOW"]
+        demands_attn_atom = self.atoms["_NET_WM_STATE_DEMANDS_ATTENTION"]
         fs_atom = self.atoms["_NET_WM_STATE_FULLSCREEN"]
         hidden_atom = self.atoms["_NET_WM_STATE_HIDDEN"]
+        win_type_atom = self.atoms["_NET_WM_WINDOW_TYPE"]
+        skip_types = {
+            self.atoms[k]
+            for k in (
+                "_NET_WM_WINDOW_TYPE_TOOLTIP",
+                "_NET_WM_WINDOW_TYPE_POPUP_MENU",
+                "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU",
+                "_NET_WM_WINDOW_TYPE_COMBO",
+            )
+            if self.atoms.get(k)
+        }
 
         raw_windows = []
         for w in client_ids:
             attr = XWindowAttributes()
             if not self.x11.XGetWindowAttributes(self.dpy, w, byref(attr)):
                 continue
-            if attr.width <= 180 or attr.height <= 40:
-                continue
-            title = self._get_title(w)
-            if title in IGNORE_TITLES or any(title.startswith(pfx) for pfx in IGNORE_TITLE_PREFIXES):
-                continue
-            wm_class = self._get_class(w)
-            if wm_class in HELPER_CLASSES and attr.width <= 260:
+            win_types = self._get_atom_list_prop(w, win_type_atom)
+            if any(t in skip_types for t in win_types):
                 continue
             states = self._get_atom_list_prop(w, self.atoms["_NET_WM_STATE"])
+            minimized = (attr.map_state != 2) or (hidden_atom in states)
+            title = self._get_title(w)
+            if (
+                title in IGNORE_TITLES
+                or any(title.startswith(pfx) for pfx in IGNORE_TITLE_PREFIXES)
+                or any(title.endswith(sfx) for sfx in IGNORE_TITLE_SUFFIXES)
+            ):
+                continue
+            wm_class = self._get_class(w)
+            if wm_class in HELPER_CLASSES and (minimized or attr.width <= 260):
+                continue
+            # Wine gives minimized real application windows 160x31 geometry; only filter tiny non-minimized helper windows
+            if not minimized and (attr.width <= 180 or attr.height <= 40):
+                continue
             raw_windows.append({
                 "win": w,
                 "id": hex(w),
@@ -366,8 +396,9 @@ class X11Controller:
                 "wm_class": wm_class,
                 "width": attr.width,
                 "height": attr.height,
-                "minimized": (attr.map_state != 2) or (hidden_atom in states),
+                "minimized": minimized,
                 "below": below_atom in states,
+                "demands_attention": demands_attn_atom in states,
                 "fullscreen": fs_atom in states,
                 "active": w == active_win,
             })
@@ -395,10 +426,13 @@ class X11Controller:
             self._clear_clip_windows_locked()
             wins = self._collect_windows_locked()
             below_atom = self.atoms["_NET_WM_STATE_BELOW"]
-            dialogs = [w for w in wins if w["is_dialog"] and not w["minimized"]]
+            demands_attn_atom = self.atoms["_NET_WM_STATE_DEMANDS_ATTENTION"]
             main_wins = [w for w in wins if w["is_main"]]
 
             changed = False
+            dialogs = [w for w in wins if w["is_dialog"] and not w["minimized"]]
+            self.seen_dialogs.intersection_update({w["win"] for w in dialogs})
+
             for d in dialogs:
                 if d["below"]:
                     self._send_wm_state(d["win"], 0, below_atom)
@@ -406,12 +440,35 @@ class X11Controller:
                         self._activate_window(d["win"])
                     changed = True
 
+            # Auto-raise newly launched or attention-requesting child/viewer windows (e.g. SsView.exe)
+            # once so Openbox focus-stealing prevention never traps them behind pfusshmain.exe.
+            new_dialogs = [w for w in dialogs if w["win"] not in self.seen_dialogs]
+            attn_dialogs = [w for w in dialogs if w["demands_attention"] and w["win"] in self.seen_dialogs]
+            self.seen_dialogs.update(w["win"] for w in dialogs)
+            to_raise = new_dialogs + attn_dialogs
+            if to_raise:
+                raise_classes = {w["wm_class"] for w in to_raise if w["wm_class"]}
+                raise_map = {w["win"]: w for w in to_raise}
+                for d in dialogs:
+                    if d["wm_class"] in raise_classes:
+                        raise_map[d["win"]] = d
+                raise_batch = sorted(raise_map.values(), key=lambda w: w["width"] * w["height"], reverse=True)
+                for w in raise_batch:
+                    if w["below"]:
+                        self._send_wm_state(w["win"], 0, below_atom)
+                    if w["demands_attention"]:
+                        self._send_wm_state(w["win"], 0, demands_attn_atom)
+                    self.x11.XRaiseWindow(self.dpy, w["win"])
+                self._activate_window(raise_batch[-1]["win"])
+                changed = True
+
             # Only force main window below if it is stuck in fullscreen while a dialog exists
             if dialogs:
+                smallest = min(dialogs, key=lambda w: w["width"] * w["height"])
                 for mw in main_wins:
                     if mw["fullscreen"] and not mw["below"]:
                         self._send_wm_state(mw["win"], 1, below_atom)
-                        self._activate_window(dialogs[-1]["win"])
+                        self._activate_window(smallest["win"])
                         changed = True
 
             if changed:
@@ -483,8 +540,9 @@ class X11Controller:
             hidden_atom = self.atoms["_NET_WM_STATE_HIDDEN"]
             dialogs = [w for w in wins if w["is_dialog"]]
             if dialogs:
+                dialogs.sort(key=lambda w: w["width"] * w["height"], reverse=True)
                 for mw in wins:
-                    if mw["is_main"] and not mw["below"]:
+                    if mw["is_main"] and mw["fullscreen"] and not mw["below"]:
                         self._send_wm_state(mw["win"], 1, below_atom)
                 for d in dialogs:
                     if d["minimized"]:
@@ -669,7 +727,7 @@ def watchdog_loop() -> None:
             X11.heal_once()
         except Exception:
             pass
-        time.sleep(1.5)
+        time.sleep(0.4)
 
 
 def main() -> None:
