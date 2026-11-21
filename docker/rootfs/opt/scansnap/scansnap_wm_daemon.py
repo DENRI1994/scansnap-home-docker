@@ -179,6 +179,7 @@ class X11Controller:
         x11.XMapWindow.argtypes = [c_void_p, c_ulong]
         x11.XUnmapWindow.argtypes = [c_void_p, c_ulong]
         x11.XSetInputFocus.argtypes = [c_void_p, c_ulong, c_int, c_ulong]
+        x11.XSetScreenSaver.argtypes = [c_void_p, c_int, c_int, c_int, c_int]
         x11.XFlush.argtypes = [c_void_p]
         x11.XSync.argtypes = [c_void_p, c_int]
         xext.XShapeCombineRectangles.argtypes = [
@@ -213,6 +214,9 @@ class X11Controller:
             "WM_NAME",
         ):
             self.atoms[name] = self.x11.XInternAtom(dpy, name.encode("ascii"), 0)
+        # Keep X11 screen blanking disabled even if XVNC_SERVER_CUSTOM_PARAMS is overridden
+        self.x11.XSetScreenSaver(dpy, 0, 0, 0, 0)
+        self.x11.XFlush(dpy)
         return True
 
     def _get_win_list_prop(self, prop_atom: int) -> list[int]:

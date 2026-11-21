@@ -30,11 +30,12 @@
   }
 
   function isSidebarVisible() {
-    const anchor = document.getElementById("noVNC_control_bar_anchor");
+    const bar = document.getElementById("noVNC_control_bar");
     const collapse = document.getElementById("scansnapSidebarCollapse");
     return Boolean(
-      anchor &&
-      !anchor.classList.contains("noVNC_hidden") &&
+      !document.hidden &&
+      bar &&
+      bar.classList.contains("noVNC_open") &&
       collapse &&
       collapse.classList.contains("show")
     );
@@ -255,15 +256,16 @@
     li.appendChild(collapse);
     actionIcons.insertAdjacentElement("afterend", li);
 
-    const anchor = document.getElementById("noVNC_control_bar_anchor");
-    if (anchor) {
-      new MutationObserver(syncPolling).observe(anchor, {
+    const controlBar = document.getElementById("noVNC_control_bar");
+    if (controlBar) {
+      new MutationObserver(syncPolling).observe(controlBar, {
         attributes: true,
         attributeFilter: ["class"],
       });
     }
     collapse.addEventListener("shown.bs.collapse", syncPolling);
     collapse.addEventListener("hidden.bs.collapse", syncPolling);
+    document.addEventListener("visibilitychange", syncPolling);
     syncPolling();
   }
 

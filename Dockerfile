@@ -68,6 +68,7 @@ RUN set-cont-env APP_NAME "ScanSnap Home" && \
     set-cont-env KEEP_APP_RUNNING "1" && \
     set-cont-env LANG "en_US.UTF-8" && \
     set-cont-env LC_ALL "en_US.UTF-8" && \
+    set-cont-env XVNC_SERVER_CUSTOM_PARAMS "-s 0" && \
     set-cont-env DOCKER_IMAGE_VERSION "${DOCKER_IMAGE_VERSION}"
 
 COPY docker/rootfs/ /

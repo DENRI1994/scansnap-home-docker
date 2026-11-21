@@ -20,7 +20,7 @@ new_txt = re.sub(
 )
 
 # Keep main window and modal "ScanSnap Home" dialogs on normal layer without fullscreen
-# so dialogs are never trapped beneath Preferences ("Voreinstellungen").
+# so dialogs are never trapped beneath Preferences.
 def _fix_pfu_app(match):
     block = match.group(0).replace("<layer>below</layer>", "<layer>normal</layer>")
     if "<fullscreen>" not in block:
@@ -90,6 +90,58 @@ txt = p.read_text(encoding="utf-8")
 tag = '    <script src="app/scansnap-sidebar.js?v=UNIQUE_VERSION" defer></script>\n</body>'
 if "</body>" in txt and "scansnap-sidebar.js" not in txt:
     p.write_text(txt.replace("</body>", tag, 1), encoding="utf-8")
+PY
+fi
+
+# Add lightweight 25s RFB keepalive to noVNC core/rfb.js so reverse proxies do not drop idle WebSockets
+RFB_JS="/opt/noVNC/core/rfb.js"
+if [ -f "${RFB_JS}" ] && ! grep -q "_keepaliveTimer" "${RFB_JS}"; then
+  python3 - <<'PY'
+from pathlib import Path
+
+p = Path("/opt/noVNC/core/rfb.js")
+txt = p.read_text(encoding="utf-8")
+
+t1 = (
+    "            // make sure we don't get a double event\n"
+    "            this._sock.off('close');\n"
+    "        }\n\n"
+    "        switch (state) {"
+)
+r1 = (
+    "            // make sure we don't get a double event\n"
+    "            this._sock.off('close');\n"
+    "        }\n\n"
+    "        if (this._keepaliveTimer && state !== 'connected') {\n"
+    "            clearInterval(this._keepaliveTimer);\n"
+    "            this._keepaliveTimer = null;\n"
+    "        }\n\n"
+    "        switch (state) {"
+)
+
+t2 = (
+    "            case 'connected':\n"
+    "                this.dispatchEvent(new CustomEvent(\"connect\", { detail: {} }));\n"
+    "                break;"
+)
+r2 = (
+    "            case 'connected':\n"
+    "                if (this._keepaliveTimer) {\n"
+    "                    clearInterval(this._keepaliveTimer);\n"
+    "                }\n"
+    "                this._keepaliveTimer = setInterval(() => {\n"
+    "                    if (this._rfbConnectionState === 'connected' && this._fbWidth > 0 && this._fbHeight > 0) {\n"
+    "                        RFB.messages.fbUpdateRequest(this._sock, false, 0, 0, 1, 1);\n"
+    "                    }\n"
+    "                }, 25000);\n"
+    "                this.dispatchEvent(new CustomEvent(\"connect\", { detail: {} }));\n"
+    "                break;"
+)
+
+if txt.count(t1) == 1 and txt.count(t2) == 1:
+    p.write_text(txt.replace(t1, r1, 1).replace(t2, r2, 1), encoding="utf-8")
+else:
+    print(f"[scansnap-novnc] warn: skipped keepalive patch in {p} (anchors not unique/found)")
 PY
 fi
 
