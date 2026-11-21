@@ -161,3 +161,13 @@ jobs:
           build-args: |
             DOCKER_IMAGE_VERSION=${{ steps.prep.outputs.version }}
           cache-from: type=gha
+
+      - name: Update Docker Hub repository overview (optional)
+        if: steps.prep.outputs.dockerhub == 'true'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/scansnap-home
+          short-description: Headless PFU/Ricoh ScanSnap Home in Docker with Web GUI (noVNC), Wi-Fi discovery, and auto-installer
+          readme-filepath: ./README.md

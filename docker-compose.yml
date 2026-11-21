@@ -20,9 +20,9 @@ services:
       SCAN_FOLDER_WIN: 'C:\ScanSnapHome'
       OCR_LANGS: "${OCR_LANGS:-1,6}"
       SCANSNAP_INSTALLER_URL: "${SCANSNAP_INSTALLER_URL:-}"
-      TZ: "${TZ:-Europe/Berlin}"
-      LANG: "${LANG:-de_DE.UTF-8}"
-      LC_ALL: "${LC_ALL:-de_DE.UTF-8}"
+      TZ: "${TZ:-UTC}"
+      LANG: "${LANG:-en_US.UTF-8}"
+      LC_ALL: "${LC_ALL:-en_US.UTF-8}"
     volumes:
       - "scansnap-prefix:/opt/scansnap/wineprefix"
       - "./data/ScanSnapHome:/opt/scansnap/wineprefix/drive_c/users/app/AppData/Roaming/PFU/ScanSnap Home"

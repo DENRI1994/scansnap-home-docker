@@ -96,5 +96,5 @@ fi
 # Start X11 self-healing watchdog + Unix socket API daemon as user app (detached)
 if [ -f /opt/scansnap/scansnap_wm_daemon.py ] && ! pgrep -f "scansnap_wm_daemon\.py" >/dev/null 2>&1; then
   rm -f /tmp/scansnap_wm.sock
-  setsid su -s /bin/sh app -c "LANG=${LANG:-de_DE.UTF-8} LC_ALL=${LC_ALL:-${LANG:-de_DE.UTF-8}} WINEPREFIX=/opt/scansnap/wineprefix HOME=/config exec python3 /opt/scansnap/scansnap_wm_daemon.py >/tmp/scansnap_wm.log 2>&1 </dev/null" >/dev/null 2>&1 </dev/null &
+  setsid su -s /bin/sh app -c "LANG=${LANG:-en_US.UTF-8} LC_ALL=${LC_ALL:-${LANG:-en_US.UTF-8}} WINEPREFIX=/opt/scansnap/wineprefix HOME=/config exec python3 /opt/scansnap/scansnap_wm_daemon.py >/tmp/scansnap_wm.log 2>&1 </dev/null" >/dev/null 2>&1 </dev/null &
 fi

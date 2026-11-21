@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export WINEPREFIX=/opt/scansnap/wineprefix
-export LANG="${LANG:-de_DE.UTF-8}"
+export LANG="${LANG:-en_US.UTF-8}"
 export LC_ALL="${LC_ALL:-${LANG}}"
 export PATH="/opt/scansnap/bin:${PATH}"
 export SCAN_FOLDER_WIN="${SCAN_FOLDER_WIN:-C:\\ScanSnapHome}"

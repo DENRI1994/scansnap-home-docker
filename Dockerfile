@@ -52,7 +52,7 @@ RUN --mount=type=bind,source=docker/strip_wine_pe.py,target=/tmp/strip_wine_pe.p
       unshield \
       unzip \
       curl && \
-    locale-gen de_DE.UTF-8 en_US.UTF-8 && \
+    locale-gen en_US.UTF-8 de_DE.UTF-8 && \
     python3 /tmp/strip_wine_pe.py && \
     rm -rf /usr/share/doc/* \
            /usr/share/man/* \
@@ -66,8 +66,8 @@ RUN --mount=type=bind,source=docker/app-icon.png,target=/tmp/app-icon.png \
 
 RUN set-cont-env APP_NAME "ScanSnap Home" && \
     set-cont-env KEEP_APP_RUNNING "1" && \
-    set-cont-env LANG "de_DE.UTF-8" && \
-    set-cont-env LC_ALL "de_DE.UTF-8" && \
+    set-cont-env LANG "en_US.UTF-8" && \
+    set-cont-env LC_ALL "en_US.UTF-8" && \
     set-cont-env DOCKER_IMAGE_VERSION "${DOCKER_IMAGE_VERSION}"
 
 COPY docker/rootfs/ /

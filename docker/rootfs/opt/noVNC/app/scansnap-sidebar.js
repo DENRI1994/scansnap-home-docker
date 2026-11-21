@@ -43,7 +43,7 @@
   function renderWindows(container, windows) {
     container.replaceChildren();
     if (!windows || windows.length === 0) {
-      container.appendChild(el("div", "text-muted small py-1", "Keine offenen Fenster gefunden."));
+      container.appendChild(el("div", "text-muted small py-1", "No open windows found."));
       return;
     }
 
@@ -87,7 +87,7 @@
   function renderServices(container, services) {
     container.replaceChildren();
     if (!services || services.length === 0) {
-      container.appendChild(el("div", "text-muted small py-1", "Keine Dienste gemeldet."));
+      container.appendChild(el("div", "text-muted small py-1", "No services reported."));
       return;
     }
 
@@ -97,7 +97,7 @@
       const dot = el(
         "span",
         `badge rounded-pill me-2 ${s.running ? "bg-success" : "bg-secondary"}`,
-        s.running ? "an" : "aus"
+        s.running ? "on" : "off"
       );
       dot.style.minWidth = "2.1rem";
       info.appendChild(dot);
@@ -107,7 +107,7 @@
       if (s.running) {
         const restartBtn = el("button", "btn btn-outline-secondary py-0 px-2");
         restartBtn.type = "button";
-        restartBtn.title = `${s.label} neu starten`;
+        restartBtn.title = `Restart ${s.label}`;
         restartBtn.appendChild(el("i", "fas fa-redo fa-xs"));
         restartBtn.addEventListener("click", async () => {
           restartBtn.disabled = true;
@@ -121,7 +121,7 @@
 
         const stopBtn = el("button", "btn btn-outline-danger py-0 px-2");
         stopBtn.type = "button";
-        stopBtn.title = `${s.label} beenden`;
+        stopBtn.title = `Stop ${s.label}`;
         stopBtn.appendChild(el("i", "fas fa-stop fa-xs"));
         stopBtn.addEventListener("click", async () => {
           stopBtn.disabled = true;
@@ -138,7 +138,7 @@
       } else {
         const startBtn = el("button", "btn btn-outline-success py-0 px-2");
         startBtn.type = "button";
-        startBtn.title = `${s.label} starten`;
+        startBtn.title = `Start ${s.label}`;
         startBtn.appendChild(el("i", "fas fa-play fa-xs"));
         startBtn.addEventListener("click", async () => {
           startBtn.disabled = true;
@@ -173,7 +173,7 @@
       renderServices(svcBox, data.services);
     } catch (err) {
       if (errBox) {
-        errBox.textContent = `Dienst nicht erreichbar (${err.message})`;
+        errBox.textContent = `Service unavailable (${err.message})`;
         errBox.classList.remove("d-none");
       }
     } finally {
@@ -202,7 +202,7 @@
     const li = el("li", "list-group-item");
     li.id = "noVNC_scansnap_section";
 
-    const label = el("label", "custom-accordion-button text-nowrap", "Fenster & Dienste");
+    const label = el("label", "custom-accordion-button text-nowrap", "Windows & Services");
     label.setAttribute("data-bs-toggle", "collapse");
     label.setAttribute("data-bs-target", "#scansnapSidebarCollapse");
 
@@ -216,7 +216,7 @@
     const raiseBtn = el("button", "btn btn-sm btn-outline-primary flex-grow-1");
     raiseBtn.type = "button";
     raiseBtn.appendChild(el("i", "fas fa-layer-group fa-fw me-1"));
-    raiseBtn.appendChild(document.createTextNode("Dialoge nach vorne"));
+    raiseBtn.appendChild(document.createTextNode("Bring dialogs to front"));
     raiseBtn.addEventListener("click", async () => {
       raiseBtn.disabled = true;
       try {
@@ -229,18 +229,18 @@
 
     const refBtn = el("button", "btn btn-sm btn-outline-secondary");
     refBtn.type = "button";
-    refBtn.title = "Aktualisieren";
+    refBtn.title = "Refresh";
     refBtn.appendChild(el("i", "fas fa-sync fa-fw"));
     refBtn.addEventListener("click", refresh);
 
     topBtns.appendChild(raiseBtn);
     topBtns.appendChild(refBtn);
 
-    const winHeader = el("div", "small fw-semibold text-uppercase opacity-75 mb-1", "Offene Fenster");
+    const winHeader = el("div", "small fw-semibold text-uppercase opacity-75 mb-1", "Open Windows");
     const winBox = el("div", "mb-2");
     winBox.id = "scansnap_windows_list";
 
-    const svcHeader = el("div", "small fw-semibold text-uppercase opacity-75 mb-1", "Hintergrunddienste");
+    const svcHeader = el("div", "small fw-semibold text-uppercase opacity-75 mb-1", "Background Services");
     const svcBox = el("div", "");
     svcBox.id = "scansnap_services_list";
 

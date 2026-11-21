@@ -11,7 +11,7 @@ Run **ScanSnap Home** headless on a Linux server or NAS inside Docker with a bro
 ## Features
 
 - **Web GUI & Auto-Restart:** Powered by `jlesage/baseimage-gui:ubuntu-26.04-v4` with clipboard sync, dynamic browser resizing/scaling, custom icon, borderless maximized main window, and resilient process supervision (`KEEP_APP_RUNNING=1`) so closing or restarting ScanSnap Home never drops the VNC session.
-- **Integrated noVNC Sidebar ("Fenster & Dienste") & X11 Self-Healing Window Watchdog:** Built into the noVNC control bar ([`scansnap-sidebar.js`](docker/rootfs/opt/noVNC/app/scansnap-sidebar.js) + [`scansnap_wm_daemon.py`](docker/rootfs/opt/scansnap/scansnap_wm_daemon.py)). Lists real open windows and modal dialogs, brings hidden or minimized dialogs to the front in one click (*Dialoge nach vorne*), shows live status and Start/Restart/Stop controls for all 6 ScanSnap background services (`ScanSnap Home`, `Scanner-Monitor`, `SshRegister`, `Task-Tray`, `Cloud-Monitor`, `Online-Update`), and automatically unmaps Wine fullscreen `clip_window` input grabs and fixes trapped Openbox dialog layers.
+- **Integrated noVNC Sidebar ("Windows & Services") & X11 Self-Healing Window Watchdog:** Built into the noVNC control bar ([`scansnap-sidebar.js`](docker/rootfs/opt/noVNC/app/scansnap-sidebar.js) + [`scansnap_wm_daemon.py`](docker/rootfs/opt/scansnap/scansnap_wm_daemon.py)). Lists real open windows and modal dialogs, brings hidden or minimized dialogs to the front in one click (*Bring dialogs to front*), shows live status and Start/Restart/Stop controls for all 6 ScanSnap background services (`ScanSnap Home`, `Scanner Monitor`, `SshRegister`, `Task Tray`, `Cloud Monitor`, `Online Update`), and automatically unmaps Wine fullscreen `clip_window` input grabs and fixes trapped Openbox dialog layers.
 - **Full ScanSnap Online Update (`3.7.0` → `4.1.0+`) Support:** Configures Wine for Windows 11 (`win11`, Build `22621`), fixes WCF `NetNamedPipeBinding` loopback auth (`ntlm_auth` + `System.ServiceModel.dll` + `*.config`), fixes `SsUCommon.dll` OS version reporting, bypasses Wine's missing COM UAC elevation moniker in `ScanSnapUpdater.exe`, patches the multi-threaded WMI `Win32_Process` deadlock in `SshTerminateHomeProcess.exe` ("Quitting ScanSnap Home..."), and automatically repairs any 64-bit Visual C++ runtime DLLs written into 32-bit `syswow64` during updates (`repair_syswow64_dlls()`).
 - **License-Clean ~1.1–1.3 GB Base Image:** Built strictly from Ubuntu/Wine packages, compiled C source ([`src/scansnap_udp_preload.c`](src/scansnap_udp_preload.c)), and SIL-OFL font substitutes ([`docker/build_open_fonts.py`](docker/build_open_fonts.py)) synthesized from `fonts-noto-core` (`ttfautohint`) and `fonts-liberation`.
 - **Automatic First-Boot Provisioning:** Drop the official Windows offline installer (`WinSSHOfflineInstaller_*.exe`, v3.7 or v4.x) into `./installer/` (or set `SCANSNAP_INSTALLER_URL`). On first boot, the container installs Microsoft .NET Framework 4.8, unpacks the offline bundle, installs ScanSnap Home + AI + requested `OCR_LANGS` + ScanSnap Online Update, and applies all Wine compatibility patches automatically.
@@ -27,7 +27,7 @@ Run **ScanSnap Home** headless on a Linux server or NAS inside Docker with a bro
    cp .env.example .env
    mkdir -p installer scans data/ScanSnapHome
    ```
-   Edit `.env` and set `SCANS_DIR` (your target folder for scanned documents), `SCANNER_IP` (your Wi-Fi scanner's IP address), and `GITHUB_REPO` (or `SCANSNAP_IMAGE`).
+   Edit `.env` and set `SCANS_DIR` (your target folder for scanned documents), `SCANNER_IP` (your Wi-Fi scanner's IP address), and optionally `TZ` / `LANG` / `LC_ALL` (e.g. `de_DE.UTF-8` for German UI).
 
 2. **Provide the official Ricoh / PFU Windows Offline Installer:**
    Download `WinSSHOfflineInstaller_*.exe` from Ricoh/PFU's official ScanSnap support site and place it in `./installer/`.
@@ -46,7 +46,7 @@ Run **ScanSnap Home** headless on a Linux server or NAS inside Docker with a bro
 
 ## NAS Deployment Guide (UGREEN NAS / UGOS Pro, Synology, Portainer)
 
-On NAS appliances such as **UGREEN UGOS Pro**, **Synology Container Manager**, or **Portainer**, create a Compose **Project (Projekt)** using a prebuilt registry image (no local `Dockerfile` needed):
+On NAS appliances such as **UGREEN UGOS Pro**, **Synology Container Manager**, or **Portainer**, create a Compose **Project** using the prebuilt image from GHCR (`ghcr.io/denri1994/scansnap-home-docker:latest`) or Docker Hub (`denri1994/scansnap-home:latest`) — no local `Dockerfile` needed:
 
 1. **Create the folder structure on your NAS** (example on UGREEN `volume1`):
    ```bash
@@ -59,11 +59,12 @@ On NAS appliances such as **UGREEN UGOS Pro**, **Synology Container Manager**, o
 2. **Upload the official Windows Offline Installer:**
    Download `WinSSHOfflineInstaller_*.exe` from Ricoh/PFU and copy it into `/volume1/docker/scansnap-home/installer/`.
 
-3. **Create a new Docker Project / Stack** and paste the standalone `docker-compose.yml` below (adjust `SCANNER_IP`, and verify `USER_ID`/`GROUP_ID` and volume paths match your NAS shared folder):
+3. **Create a new Docker Project / Stack** and paste the standalone `docker-compose.yml` below (adjust `SCANNER_IP`, `TZ`/`LANG`/`LC_ALL` if needed, and verify `USER_ID`/`GROUP_ID` and volume paths match your NAS shared folder):
    ```yaml
    services:
      scansnap-home:
        image: ghcr.io/denri1994/scansnap-home-docker:latest
+       # Or from Docker Hub: denri1994/scansnap-home:latest
        container_name: scansnap-home
        network_mode: host
        restart: unless-stopped
@@ -81,9 +82,9 @@ On NAS appliances such as **UGREEN UGOS Pro**, **Synology Container Manager**, o
          SCANNER_IP: "192.168.1.50"
          SCAN_FOLDER_WIN: 'C:\ScanSnapHome'
          OCR_LANGS: "1,6"
-         TZ: "Europe/Berlin"
-         LANG: "de_DE.UTF-8"
-         LC_ALL: "de_DE.UTF-8"
+         TZ: "UTC"
+         LANG: "en_US.UTF-8"     # Set de_DE.UTF-8 for German ScanSnap Home UI
+         LC_ALL: "en_US.UTF-8"   # Set de_DE.UTF-8 for German ScanSnap Home UI
          # Optional password protection (see section below):
          # VNC_PASSWORD: "your-password"
          # WEB_AUTHENTICATION: "1"
@@ -103,7 +104,7 @@ On NAS appliances such as **UGREEN UGOS Pro**, **Synology Container Manager**, o
    > **`network_mode: host`** is strongly recommended on NAS systems so Wi-Fi scanner discovery (`UDP 52217`) works directly on your LAN. On `UGOS Pro` / `Synology`, make sure ports `6080` (Web UI), `5999` (if raw VNC is enabled), and `52217`/`53220`/`55265` do not conflict with existing services, or change `WEB_LISTENING_PORT` (e.g. `6081`).
 
 4. **Deploy and open `http://<nas-ip>:6080/`:**
-   Wait ~5–10 minutes on the very first start while `.NET 4.8` and `WinSSHOfflineInstaller_*.exe` install unattended inside the container. Once ScanSnap Home appears, open the left noVNC sidebar to access **Fenster & Dienste** if a modal dialog is ever hidden or you want to start/restart background services.
+   Wait ~5–10 minutes on the very first start while `.NET 4.8` and `WinSSHOfflineInstaller_*.exe` install unattended inside the container. Once ScanSnap Home appears, open the left noVNC sidebar to access **Windows & Services** if a modal dialog is ever hidden or you want to start/restart background services.
 
 ---
 
@@ -140,7 +141,7 @@ Because the container builds on `jlesage/baseimage-gui`, you can protect the Web
 | `OCR_LANGS` | `1,6` | Comma-separated OCR pack numbers (`1,6`, `all`, or `none`) |
 | `SCANSNAP_INSTALLER_URL` | *(empty)* | Optional direct URL to download installer if `./installer/` is empty |
 | `KEEP_APP_RUNNING` | `1` | Keep app supervisor loop & container alive when ScanSnap Home exits or restarts |
-| `TZ` / `LANG` / `LC_ALL` | `Europe/Berlin` / `de_DE.UTF-8` | Timezone and Windows/Wine UI language (set e.g. `en_US.UTF-8` for English UI) |
+| `TZ` / `LANG` / `LC_ALL` | `UTC` / `en_US.UTF-8` | Timezone and Windows/Wine UI language (e.g. `de_DE.UTF-8` for German UI) |
 | `WEB_LISTENING_PORT` | `6080` | noVNC web interface port (`network_mode: host`) |
 | `VNC_LISTENING_PORT` | `5999` | Raw VNC port (`-1` to disable, localhost-only by default) |
 | `VNC_LOCALHOST_ONLY` | `1` | Restrict direct VNC port to `127.0.0.1` |
@@ -148,16 +149,6 @@ Because the container builds on `jlesage/baseimage-gui`, you can protect the Web
 | `WEB_AUTHENTICATION` | `0` | Set `1` to require NGINX `/login/` username/password authentication |
 | `DISPLAY_WIDTH` / `DISPLAY_HEIGHT` | `1440` / `900` | Virtual X11 display resolution |
 | `DARK_MODE` | `0` | `1` enables dark mode in the web sidebar |
-
----
-
-## Automated CI/CD Publishing (GitHub Actions)
-
-The included workflow [`.github/workflows/publish.yml`](.github/workflows/publish.yml) builds, smoke-tests, and publishes the image automatically:
-
-- **Triggers:** Every push to `main`, release tags (`v*`, e.g. `v26.11.1`), manual dispatch, and a **weekly Sunday schedule (`04:00 UTC`)** to pick up upstream Ubuntu 26.04, Wine, and `jlesage/baseimage-gui` security updates.
-- **GitHub Container Registry (`ghcr.io`):** Works out-of-the-box with zero extra secrets via `GITHUB_TOKEN`. Ensure *Workflow permissions → Read and write permissions* is enabled under Repository Settings → Actions → General.
-- **Docker Hub (`docker.io`, optional):** Add repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` in GitHub Settings → Secrets and variables → Actions. The workflow automatically pushes to both `ghcr.io/<owner>/<repo>` and `docker.io/<user>/scansnap-home` whenever both secrets are present.
 
 ---
 
@@ -169,7 +160,7 @@ To pull a newer base image (Ubuntu / Wine / VNC security updates) without touchi
 docker compose pull && docker compose up -d
 ```
 
-For ScanSnap Home application updates itself, use **ScanSnap Online Update** directly inside the GUI (or launch **Online-Update** from the noVNC *Fenster & Dienste* sidebar).
+For ScanSnap Home application updates itself, use **ScanSnap Online Update** directly inside the GUI (or launch **Online Update** from the noVNC **Windows & Services** sidebar).
 
 ---
 

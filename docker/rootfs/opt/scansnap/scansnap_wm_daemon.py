@@ -29,11 +29,11 @@ UPD_EXE = r"C:\Program Files (x86)\PFU\ScanSnap\Update\ScanSnapUpdater.exe"
 
 SERVICES = [
     {"key": "main", "label": "ScanSnap Home", "pattern": r"PfuSshMain\.exe", "exe": f"{SSH_DIR}\\PfuSshMain.exe"},
-    {"key": "mon", "label": "Scanner-Monitor", "pattern": r"PfuSsMon\.exe", "exe": f"{SSH_DIR}\\PfuSsMon.exe"},
+    {"key": "mon", "label": "Scanner Monitor", "pattern": r"PfuSsMon\.exe", "exe": f"{SSH_DIR}\\PfuSsMon.exe"},
     {"key": "reg", "label": "SshRegister", "pattern": r"SshRegister\.exe", "exe": f"{SSH_DIR}\\SshRegister.exe"},
-    {"key": "tray", "label": "Task-Tray", "pattern": r"SshTaskTray\.exe", "exe": f"{SSH_DIR}\\SshTaskTray.exe"},
-    {"key": "cloud", "label": "Cloud-Monitor", "pattern": r"SshCloudMonitor\.exe", "exe": f"{SSH_DIR}\\SshCloudMonitor.exe"},
-    {"key": "updater", "label": "Online-Update", "pattern": r"ScanSnapUpdater\.exe", "exe": UPD_EXE},
+    {"key": "tray", "label": "Task Tray", "pattern": r"SshTaskTray\.exe", "exe": f"{SSH_DIR}\\SshTaskTray.exe"},
+    {"key": "cloud", "label": "Cloud Monitor", "pattern": r"SshCloudMonitor\.exe", "exe": f"{SSH_DIR}\\SshCloudMonitor.exe"},
+    {"key": "updater", "label": "Online Update", "pattern": r"ScanSnapUpdater\.exe", "exe": UPD_EXE},
 ]
 
 IGNORE_TITLES = {
@@ -581,7 +581,7 @@ def control_service(target: str, op: str) -> tuple[bool, str]:
                     return True, "started"
                 time.sleep(0.2)
         env = os.environ.copy()
-        env["LANG"] = env.get("LANG") or "de_DE.UTF-8"
+        env["LANG"] = env.get("LANG") or "en_US.UTF-8"
         env["LC_ALL"] = env.get("LC_ALL") or env["LANG"]
         env["DISPLAY"] = detect_display()
         env["WINEPREFIX"] = WINEPREFIX

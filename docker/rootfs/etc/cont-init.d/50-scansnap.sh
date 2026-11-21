@@ -13,17 +13,17 @@ SSH_EXE="${WINEPREFIX}/drive_c/Program Files (x86)/PFU/ScanSnap/Home/PfuSshMain.
 mkdir -p "${WINEPREFIX}" \
          "${SCAN_DIR}" \
          /installer \
-         /config/Schreibtisch \
+         /config/Desktop \
          /config/Downloads \
-         /config/Musik \
-         /config/Bilder \
+         /config/Music \
+         /config/Pictures \
          /config/Videos
 
 chown "${UID_VAL}:${GID_VAL}" \
-      /config/Schreibtisch \
+      /config/Desktop \
       /config/Downloads \
-      /config/Musik \
-      /config/Bilder \
+      /config/Music \
+      /config/Pictures \
       /config/Videos
 
 # Align Wine prefix ownership when fresh volume, root-owned, or UID/GID differs (do not recurse into host SCANS_DIR)
@@ -73,7 +73,7 @@ link_to_scan_dir() {
 }
 
 link_to_scan_dir /config/scans
-link_to_scan_dir /config/Dokumente
+link_to_scan_dir /config/Documents
 link_to_scan_dir "${ACTIVE_USER_DIR}/Documents"
 link_to_scan_dir "${APPDATA_SSH}/ScanSnap Home"
 
