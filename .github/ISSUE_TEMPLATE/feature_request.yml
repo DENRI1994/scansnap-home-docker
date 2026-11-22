@@ -1,0 +1,28 @@
+name: Feature Request
+description: Suggest an improvement or new configuration option
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: Describe what limitation or workflow gap you are experiencing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe how you would like this to work (e.g., environment variable, sidebar button, script behavior).
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Alternatives Considered & Additional Context
+      description: Any workarounds, links, or NAS constraints to keep in mind.
+    validations:
+      required: false

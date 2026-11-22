@@ -1,0 +1,69 @@
+name: Bug Report
+description: Report a problem running ScanSnap Home in Docker
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill in the fields below so we can reproduce and fix the issue quickly.
+
+  - type: input
+    id: host-platform
+    attributes:
+      label: Host OS / NAS Platform
+      description: e.g., UGREEN UGOS Pro, Synology DSM 7.2, Debian 12, Unraid
+      placeholder: "UGREEN UGOS Pro / Debian 12"
+    validations:
+      required: true
+
+  - type: input
+    id: image-tag
+    attributes:
+      label: Docker Image Tag or Digest
+      description: e.g., denri1994/scansnap-home:latest or ghcr.io/denri1994/scansnap-home-docker:latest
+      placeholder: "denri1994/scansnap-home:latest"
+    validations:
+      required: true
+
+  - type: input
+    id: scansnap-version
+    attributes:
+      label: ScanSnap Home Version & Scanner Model
+      description: e.g., ScanSnap Home 4.1.0, iX1600 over Wi-Fi (or offline/none)
+      placeholder: "ScanSnap Home 4.1.0 / iX1600 (Wi-Fi)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the bug and how to reproduce it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Paste `docker logs scansnap-home` and/or sanitized excerpts from `AppData/Roaming/PFU/ScanSnap Home/Logs/SSHAppLog.txt` or `SsView.log`.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Privacy & Copyright Check
+      options:
+        - label: I have removed passwords, tokens, private LAN details, and did NOT attach proprietary installers, DLLs, or personal scanned documents.
+          required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation & Setup Guide
+    url: https://github.com/DENRI1994/scansnap-home-docker#readme
+    about: Check the NAS and Linux Docker Compose setup guide before opening an issue.
+  - name: Report a Security Vulnerability
+    url: https://github.com/DENRI1994/scansnap-home-docker/security/advisories/new
+    about: Report security issues privately instead of opening a public issue.
